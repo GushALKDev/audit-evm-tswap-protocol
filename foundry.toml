@@ -4,6 +4,10 @@ out = "out"
 libs = ["lib"]
 solc = "0.8.20"
 remappings = ['@openzeppelin/contracts=lib/openzeppelin-contracts/contracts']
+evm_version = "cancun"
+
+[fuzz]
+seed = "0x1"
 
 [invariant]
 runs = 256

@@ -13,12 +13,14 @@
  */
 // SPDX-License-Identifier: GNU General Public License v3.0
 pragma solidity 0.8.20;
+// @audit-info PUSH0 is not supported by all chains
 
 import { TSwapPool } from "./TSwapPool.sol";
 import { IERC20 } from "forge-std/interfaces/IERC20.sol";
 
 contract PoolFactory {
     error PoolFactory__PoolAlreadyExists(address tokenAddress);
+    // @audit-info Error not used
     error PoolFactory__PoolDoesNotExist(address tokenAddress);
 
     /*//////////////////////////////////////////////////////////////
@@ -32,23 +34,31 @@ contract PoolFactory {
     /*//////////////////////////////////////////////////////////////
                                  EVENTS
     //////////////////////////////////////////////////////////////*/
+    // @audit-info Missing indexed values
     event PoolCreated(address tokenAddress, address poolAddress);
 
     /*//////////////////////////////////////////////////////////////
                                FUNCTIONS
     //////////////////////////////////////////////////////////////*/
     constructor(address wethToken) {
+        // @audit-info missing zero address check
         i_wethToken = wethToken;
     }
 
     /*//////////////////////////////////////////////////////////////
                            EXTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
+    // @audit tokenAddress is probably the pool token
+    // @audit-info missing zero address check
     function createPool(address tokenAddress) external returns (address) {
         if (s_pools[tokenAddress] != address(0)) {
             revert PoolFactory__PoolAlreadyExists(tokenAddress);
         }
+        // @audit - Q - What if the name function reverts?
+        // @audit-info liquidityTokenName is not checked for zero length
         string memory liquidityTokenName = string.concat("T-Swap ", IERC20(tokenAddress).name());
+        // @audit - Q - What if the symbol function reverts?
+        // @audit-info liquidityTokenSymbol is using the pool token name instead of the pool token symbol IERC20(tokenAddress).symbol()
         string memory liquidityTokenSymbol = string.concat("ts", IERC20(tokenAddress).name());
         TSwapPool tPool = new TSwapPool(tokenAddress, i_wethToken, liquidityTokenName, liquidityTokenSymbol);
         s_pools[tokenAddress] = address(tPool);
