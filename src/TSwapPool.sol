@@ -13,7 +13,7 @@
  */
 // SPDX-License-Identifier: GNU General Public License v3.0
 pragma solidity 0.8.20;
-// @audit-info PUSH0 is not supported by all chains
+// @audit-info-written PUSH0 is not supported by all chains
 
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -43,7 +43,7 @@ contract TSwapPool is ERC20 {
     //////////////////////////////////////////////////////////////*/
     IERC20 private immutable i_wethToken;
     IERC20 private immutable i_poolToken;
-    // @audit-info Large literal values can be replaced with scientific notation (1_000_000_000 -> 1e9)
+    // @audit-info-written Large literal values can be replaced with scientific notation (1_000_000_000 -> 1e9)
     uint256 private constant MINIMUM_WETH_LIQUIDITY = 1_000_000_000;
     uint256 private swap_count = 0;
     uint256 private constant SWAP_COUNT_MAX = 10;
@@ -51,19 +51,19 @@ contract TSwapPool is ERC20 {
     /*//////////////////////////////////////////////////////////////
                                  EVENTS
     //////////////////////////////////////////////////////////////*/
-    // @audit-info Missing indexed values
+    // @audit-info-written Missing indexed values
     event LiquidityAdded(
         address indexed liquidityProvider,
         uint256 wethDeposited,
         uint256 poolTokensDeposited
     );
-    // @audit-info Missing indexed values
+    // @audit-info-written Missing indexed values
     event LiquidityRemoved(
         address indexed liquidityProvider,
         uint256 wethWithdrawn,
         uint256 poolTokensWithdrawn
     );
-    // @audit-info Missing indexed values for tokenIn and tokenOut
+    // @audit-info-written Missing indexed values for tokenIn and tokenOut
     event Swap(
         address indexed swapper,
         IERC20 tokenIn,
@@ -98,9 +98,9 @@ contract TSwapPool is ERC20 {
         string memory liquidityTokenName,
         string memory liquidityTokenSymbol
     ) ERC20(liquidityTokenName, liquidityTokenSymbol) {
-        // @audit-info missing zero address check
+        // @audit-info-written missing zero address check
         i_wethToken = IERC20(wethToken);
-        // @audit-info missing zero address check
+        // @audit-info-written missing zero address check
         i_poolToken = IERC20(poolToken);
     }
 
@@ -118,13 +118,13 @@ contract TSwapPool is ERC20 {
     /// derived from the amount of WETH the user is going to deposit
     /// @param deadline The deadline for the transaction to be completed by
 
-    // @audit-info maximumPoolTokensToDeposit should revert if it is zero
+    // @audit-info-written maximumPoolTokensToDeposit should revert if it is zero
     // audit-info revertIfZero(maximumPoolTokensToDeposit)
     function deposit(
         uint256 wethToDeposit,
         uint256 minimumLiquidityTokensToMint,
         uint256 maximumPoolTokensToDeposit,
-        // @audit-issue - HIGH - deadline is not used
+        // @audit-issue-written - HIGH - deadline is not used
         // audit-issue IMPACT: HIGH
         // audit-issue LIKELIHOOD: HIGH (Always)
         // audit-issue RECOMMENDATION: Use revertIfDeadlinePassed(deadline)
@@ -135,7 +135,7 @@ contract TSwapPool is ERC20 {
         returns (uint256 liquidityTokensToMint)
     {
         if (wethToDeposit < MINIMUM_WETH_LIQUIDITY) {
-            // @audit-info MINIMUM_WETH_LIQUIDITY is a constant and is not necessary to be emitted in the error
+            // @audit-info-written MINIMUM_WETH_LIQUIDITY is a constant and is not necessary to be emitted in the error
             revert TSwapPool__WethDepositAmountTooLow(
                 MINIMUM_WETH_LIQUIDITY,
                 wethToDeposit
@@ -143,7 +143,7 @@ contract TSwapPool is ERC20 {
         }
         if (totalLiquidityTokenSupply() > 0) {
             uint256 wethReserves = i_wethToken.balanceOf(address(this));
-            // @audit-info poolTokenReserves is not used
+            // @audit-info-written poolTokenReserves is not used
             uint256 poolTokenReserves = i_poolToken.balanceOf(address(this));
             // Our invariant says weth, poolTokens, and liquidity tokens must always have the same ratio after the
             // initial deposit
@@ -212,7 +212,7 @@ contract TSwapPool is ERC20 {
     ) private {
         // @audit-ok Uses CEI patterns
         _mint(msg.sender, liquidityTokensToMint);
-        // @audit-issue (low) -> the parameters are backwards
+        // @audit-issue-written (low) -> the parameters are backwards
         // audit-issue LiquidityAdded(msg.sender, wethToDeposit, poolTokensToDeposit);
         emit LiquidityAdded(msg.sender, poolTokensToDeposit, wethToDeposit);
 
@@ -289,10 +289,10 @@ contract TSwapPool is ERC20 {
         // (totalWethOfPool * totalPoolTokensOfPool) + (wethToDeposit * totalPoolTokensOfPool) = k - (totalWethOfPool *
         // poolTokensToDeposit) - (wethToDeposit * poolTokensToDeposit)
         // @audit-ok 997 / 1000 = 0.997 -> 1 - 0.997 = 0.003 -> 0.003 * 100 = 0.3% fee
-        // @audit-info Replace 997 with a constant
+        // @audit-info-written Replace 997 with a constant
         uint256 inputAmountMinusFee = inputAmount * 997;
         uint256 numerator = inputAmountMinusFee * outputReserves;
-        // @audit-info Replace 1000 with a constant
+        // @audit-info-written Replace 1000 with a constant
         uint256 denominator = (inputReserves * 1000) + inputAmountMinusFee;
         return numerator / denominator;
     }
@@ -320,9 +320,9 @@ contract TSwapPool is ERC20 {
         // audit inputAmount = (inputReserves * outputAmount) / (outputReserves - outputAmount)
         // audit without fees.... ingoring them for now
         // audit formula without fees is OK
-        // @audit-info Replace magic numbers with constants
-        // @audit-info Large literal values multiples of 10000 can be replaced with scientific notation
-        // @audit-issue - 997 / 10000 = 0.0997 -> 1 - 0.0997 = 0.9003 -> 0.9003 * 100 = 90.03% fee
+        // @audit-info-written Replace magic numbers with constants
+        // @audit-info-written Large literal values multiples of 10000 can be replaced with scientific notation
+        // @audit-issue-written - 997 / 10000 = 0.0997 -> 1 - 0.0997 = 0.9003 -> 0.9003 * 100 = 90.03% fee
         // audit issue IMPACT: HIGH
         // audit issue LIKELIHOOD: HIGH
         // audit issue HIGH
@@ -332,11 +332,11 @@ contract TSwapPool is ERC20 {
             ((outputReserves - outputAmount) * 997);
     }
 
-    // @audit-info This function could be marked as external
-    // @audit-info Where is the NatSpec here?
-    // @audit-info Missing address zero checks for inputToken and outputToken
-    // @audit-info Missing minOutputAmount revertIfZero
-    // @audit-issue - LOW - Unused return parameter (output)
+    // @audit-info-written This function could be marked as external
+    // @audit-info-written Where is the NatSpec here?
+    // @audit-info-written Missing address zero checks for inputToken and outputToken
+    // @audit-info-written Missing minOutputAmount revertIfZero
+    // @audit-issue-written - LOW - Unused return parameter (output)
     function swapExactInput(
         IERC20 inputToken,
         uint256 inputAmount,
@@ -376,13 +376,13 @@ contract TSwapPool is ERC20 {
      * @param outputToken ERC20 token to send to caller
      * @param outputAmount The exact amount of tokens to send to caller
      */
-    // @audit-info Missing deadline parameter in natspec
-    // @audit-info Missing maximum input amount?
+    // @audit-info-written Missing deadline parameter in natspec
+    // @audit-info-written Missing maximum input amount?
     function swapExactOutput(
         IERC20 inputToken,
         IERC20 outputToken,
         uint256 outputAmount,
-        // @audit-info No slippage protection - maxInputAmount is missing
+        // @audit-info-written No slippage protection - maxInputAmount is missing
         // audit-info uint256 maxInputAmount,
         // audit-info If the pool gets a massive transaction that changes the price
         // audit-info the user will get less output than expected
@@ -414,7 +414,7 @@ contract TSwapPool is ERC20 {
         uint256 poolTokenAmount
     ) external returns (uint256 wethAmount) {
         return
-            // @audit-issue We should use here swapExactInput instead of swapExactOutput
+            // @audit-issue-written We should use here swapExactInput instead of swapExactOutput
             // audit-issue Input token is pool token
             // audit-issue Output token is WETH
             // audit-issue We know exactly the input amount
@@ -449,7 +449,7 @@ contract TSwapPool is ERC20 {
         }
 
         swap_count++;
-        // @audit-issue This fee-on-transfer breaks the invariant
+        // @audit-issue-written This fee-on-transfer breaks the invariant
         // if (swap_count >= SWAP_COUNT_MAX) {
         //     swap_count = 0;
         //     outputToken.safeTransfer(msg.sender, 1_000_000_000_000_000_000);
@@ -465,7 +465,7 @@ contract TSwapPool is ERC20 {
         inputToken.safeTransferFrom(msg.sender, address(this), inputAmount);
         outputToken.safeTransfer(msg.sender, outputAmount);
 
-        // @audit-info We can add here a check for the constant product invariant
+        // @audit-info-written We can add here a check for the constant product invariant
         // audit-info x * y = k Before swap == After swap
     }
 
@@ -510,7 +510,7 @@ contract TSwapPool is ERC20 {
     function getPriceOfOneWethInPoolTokens() external view returns (uint256) {
         return
             getOutputAmountBasedOnInput(
-                // @audit-info Replace magic numbers with constants
+                // @audit-info-written Replace magic numbers with constants
                 1e18,
                 i_wethToken.balanceOf(address(this)),
                 i_poolToken.balanceOf(address(this))
@@ -520,7 +520,7 @@ contract TSwapPool is ERC20 {
     function getPriceOfOnePoolTokenInWeth() external view returns (uint256) {
         return
             getOutputAmountBasedOnInput(
-                // @audit-info Replace magic numbers with constants
+                // @audit-info-written Replace magic numbers with constants
                 1e18,
                 i_poolToken.balanceOf(address(this)),
                 i_wethToken.balanceOf(address(this))
