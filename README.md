@@ -2,166 +2,188 @@
 <img src="./images/t-swap-youtube-dimensions.png" width="400" alt="t-swap">
 <br/>
 
-# TSwap 
+# 🔐 TSwap Security Audit
 
-This project is meant to be a permissionless way for users to swap assets between each other at a fair price. You can think of T-Swap as a decentralized asset/token exchange (DEX). 
-T-Swap is known as an [Automated Market Maker (AMM)](https://chain.link/education-hub/what-is-an-automated-market-maker-amm) because it doesn't use a normal "order book" style exchange, instead it uses "Pools" of an asset. 
-It is similar to Uniswap. To understand Uniswap, please watch this video: [Uniswap Explained](https://www.youtube.com/watch?v=DLu35sIqVTM)
+A comprehensive security audit of the **TSwap** Decentralized Exchange (DEX) protocol.
 
-## TSwap Pools
-The protocol starts as simply a `PoolFactory` contract. This contract is used to create new "pools" of tokens. It helps make sure every pool token uses the correct logic. But all the magic is in each `TSwapPool` contract. 
+**Lead Security Researcher:** [GushALKDev](https://github.com/GushALKDev)
 
-You can think of each `TSwapPool` contract as it's own exchange between exactly 2 assets. Any ERC20 and the [WETH](https://etherscan.io/token/0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2) token. These pools allow users to permissionlessly swap between an ERC20 that has a pool and WETH. Once enough pools are created, users can easily "hop" between supported ERC20s. 
+---
 
-For example:
-1. User A has 10 USDC
-2. They want to use it to buy DAI
-3. They `swap` their 10 USDC -> WETH in the USDC/WETH pool
-4. Then they `swap` their WETH -> DAI in the DAI/WETH pool
+## 📋 Table of Contents
 
-Every pool is a pair of `TOKEN X` & `WETH`. 
+- [Audit Overview](#audit-overview)
+- [Severity Classification](#severity-classification)
+- [Executive Summary](#executive-summary)
+- [Findings](#findings)
+  - [High Severity](#-high-severity)
+  - [Medium Severity](#-medium-severity)
+  - [Low Severity](#-low-severity)
+  - [Informational](#-informational)
+- [Use of Tools](#-tools-used)
+- [Lessons Learned](#-lessons-learned)
 
-There are 2 functions users can call to swap tokens in the pool. 
-- `swapExactInput`
-- `swapExactOutput`
+---
 
-We will talk about what those do in a little. 
+## Audit Overview
 
-## Liquidity Providers
-In order for the system to work, users have to provide liquidity, aka, "add tokens into the pool". 
+| Item | Detail |
+|------|--------|
+| **Audit Commit Hash** | `e643a8d4c2c802490976b538dd009b351b1c8dda` |
+| **Solidity Version** | `0.8.20` |
+| **Target Chain** | Ethereum |
+| **Scope** | `src/PoolFactory.sol`, `src/TSwapPool.sol` |
+| **Methods** | Manual Review, Static Analysis (Slither, Aderyn) |
 
-### Why would I want to add tokens to the pool? 
-The TSwap protocol accrues fees from users who make swaps. Every swap has a `0.3` fee, represented in `getInputAmountBasedOnOutput` and `getOutputAmountBasedOnInput`. Each applies a `997` out of `1000` multiplier. That fee stays in the protocol. 
+---
 
-When you deposit tokens into the protocol,  you are rewarded with an LP token. You'll notice `TSwapPool` inherits the `ERC20` contract. This is because the `TSwapPool` gives out an ERC20 when Liquidity Providers (LP)s deposit tokens. This represents their share of the pool, how much they put in. When users swap funds, 0.03% of the swap stays in the pool, netting LPs a small profit. 
+## Severity Classification
 
-### LP Example
-1. LP A adds 1,000 WETH & 1,000 USDC to the USDC/WETH pool
-   1. They gain 1,000 LP tokens
-2. LP B adds 500 WETH & 500 USDC to the USDC/WETH pool 
-   1. They gain 500 LP tokens
-3. There are now 1,500 WETH & 1,500 USDC in the pool
-4. User A swaps 100 USDC -> 100 WETH. 
-   1. The pool takes 0.3%, aka 0.3 USDC.
-   2. The pool balance is now 1,400.3 WETH & 1,600 USDC
-   3. aka: They send the pool 100 USDC, and the pool sends them 99.7 WETH
+| Severity | Impact |
+|----------|--------|
+| 🔴 **High** | Critical vulnerabilities leading to direct loss of funds or complete compromise |
+| 🟠 **Medium** | Issues causing unexpected behavior or moderate financial impact |
+| 🟡 **Low** | Minor issues that don't directly risk funds |
+| 🔵 **Info** | Best practices and code quality improvements |
 
-Note, in practice, the pool would have slightly different values than 1,400.3 WETH & 1,600 USDC due to the math below. 
+---
 
-## Core Invariant 
+## Executive Summary
 
-Our system works because the ratio of Token A & WETH will always stay the same. Well, for the most part. Since we add fees, our invariant technially increases. 
+The **TSwap** protocol contains **critical security vulnerabilities** that make it **unsafe for production deployment**. Major issues were found in the fee calculation mechanics and slippage protection.
 
-`x * y = k`
-- x = Token Balance X
-- y = Token Balance Y
-- k = The constant ratio between X & Y
+### Key Metrics
 
-```javascript
-y = Token Balance Y
-x = Token Balance X
-x * y = k
-x * y = (x + ∆x) * (y − ∆y)
-∆x = Change of token balance X
-∆y = Change of token balance Y
-β = (∆y / y)
-α = (∆x / x)
+| Severity | Count |
+|----------|-------|
+| 🔴 High | 4 |
+| 🟠 Medium | 1 |
+| 🟡 Low | 3 |
+| 🔵 Info | 14 |
+| **Total** | **22** |
 
-Final invariant equation without fees:
-∆x = (β/(1-β)) * x
-∆y = (α/(1+α)) * y
+### Critical Risks
 
-Invariant with fees
-ρ = fee (between 0 & 1, aka a percentage)
-γ = (1 - p) (pronounced gamma)
-∆x = (β/(1-β)) * (1/γ) * x
-∆y = (αγ/1+αγ) * y
+- ⚠️ **Broken Fee Calculation** — Protocol takes ~90% fee instead of 0.3% in `swapExactOutput`.
+- ⚠️ **Missing Slippage Protection** — `swapExactOutput` has no `maxInput` check.
+- ⚠️ **Incorrect Swap Logic** — `sellPoolTokens` calls `swapExactOutput` incorrectly.
+- ⚠️ **No Deadline Checks** — Deposits can be executed at unfavorable times.
+
+---
+
+## Findings
+
+### 🔴 High Severity
+
+#### [H-1] Incorrect fee calculation in `getInputAmountBasedOnOutput` causes protocol to take 90% fee instead of 0.3%
+
+**Location:** `TSwapPool::getInputAmountBasedOnOutput`
+
+The function uses `10000` instead of `1000` in the numerator when calculating input amount, resulting in a massive overcharge (90%+ fee) rather than the intended 0.3%.
+
+```solidity
+// ❌ Vulnerable - 10000 creates 90% fee
+return ((inputReserves * outputAmount) * 10000) / ((outputReserves - outputAmount) * 997);
 ```
 
-Our protocol should always follow this invariant in order to keep swapping correctly!
+**Fix:** Replace `10000` with `1000`.
 
-## Make a swap
+---
 
-After a pool has liquidity, there are 2 functions users can call to swap tokens in the pool. 
-- `swapExactInput`
-- `swapExactOutput`
+#### [H-2] `TSwapPool::sellPoolTokens` calls `swapExactOutput` with incorrect parameters
 
-A user can either choose exactly how much to input (ie: I want to use 10 USDC to get however much WETH the market says it is), or they can choose exactly how much they want to get out (ie: I want to get 10 WETH from however much USDC the market says it is. 
+**Location:** `TSwapPool::sellPoolTokens`
 
-*This codebase is based loosely on [Uniswap v1](https://github.com/Uniswap/v1-contracts/tree/master)*
+The function calls `swapExactOutput` passing `poolTokenAmount` (an input amount) as the `outputAmount` parameter. This fundamentally breaks the logic of selling a specific amount of tokens.
 
-- [TSwap](#tswap)
-  - [TSwap Pools](#tswap-pools)
-  - [Liquidity Providers](#liquidity-providers)
-    - [Why would I want to add tokens to the pool?](#why-would-i-want-to-add-tokens-to-the-pool)
-    - [LP Example](#lp-example)
-  - [Core Invariant](#core-invariant)
-  - [Make a swap](#make-a-swap)
-- [Getting Started](#getting-started)
-  - [Requirements](#requirements)
-  - [Quickstart](#quickstart)
-- [Usage](#usage)
-  - [Testing](#testing)
-    - [Test Coverage](#test-coverage)
-- [Audit Scope Details](#audit-scope-details)
-  - [Actors / Roles](#actors--roles)
-  - [Known Issues](#known-issues)
+**Fix:** Use `swapExactInput` instead.
 
-# Getting Started
+---
 
-## Requirements
+#### [H-3] `TSwapPool::swapExactOutput` lacks slippage protection
 
-- [git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)
-  - You'll know you did it right if you can run `git --version` and you see a response like `git version x.x.x`
-- [foundry](https://getfoundry.sh/)
-  - You'll know you did it right if you can run `forge --version` and you see a response like `forge 0.2.0 (816e00b 2023-03-16T00:05:26.396218Z)`
+**Location:** `TSwapPool::swapExactOutput`
 
-## Quickstart
+The function does not accept a `maxInputAmount` parameter. If market conditions change or liquidity shifts, users may end up paying significantly more input tokens than expected to receive their desired output.
 
-```
-git clone https://github.com/Cyfrin/5-t-swap-audit
-cd 5-t-swap-audit
-make 
-```
+**Fix:** Add `maxInputAmount` parameter and check `inputAmount <= maxInputAmount`.
 
-# Usage
+---
 
-## Testing
+#### [H-4] `TSwapPool::deposit` Missing Deadline Check
 
-```
-forge test
-```
+**Location:** `TSwapPool::deposit`
 
-### Test Coverage
+The `deposit` function accepts a `deadline` parameter but never checks it (missing `revertIfDeadlinePassed` modifier). Transactions can hang in the mempool and be executed long after the user intended.
 
-```
-forge coverage
-```
+**Fix:** Add `revertIfDeadlinePassed(deadline)` modifier.
 
-and for coverage based testing: 
+---
 
-```
-forge coverage --report debug
-```
+### 🟠 Medium Severity
 
-# Audit Scope Details
+#### [M-1] Fee-on-transfer logic breaks protocol invariant
 
-- Commit Hash: e643a8d4c2c802490976b538dd009b351b1c8dda
-- In Scope:
-```
-./src/
-#-- PoolFactory.sol
-#-- TSwapPool.sol
-```
-- Solc Version: 0.8.20
-- Chain(s) to deploy contract to: Ethereum
-- Tokens:
-  - Any ERC20 token
+**Location:** `TSwapPool::_swap`
 
-## Actors / Roles
-- Liquidity Providers: Users who have liquidity deposited into the pools. Their shares are represented by the LP ERC20 tokens. They gain a 0.3% fee every time a swap is made. 
-- Users: Users who want to swap tokens.
+Logic exists to send tokens out of the contract every `SWAP_COUNT_MAX` swaps without balancing the reserves. This removes tokens from the pool without a corresponding swap, breaking the `x * y = k` invariant.
 
-## Known Issues
+**Fix:** Remove the fee-on-transfer mechanism or account for it mathematically.
 
-- None
+---
+
+### 🟡 Low Severity
+
+| ID | Finding | Location |
+|----|---------|----------|
+| L-1 | `LiquidityAdded` event emits parameters in wrong order (swaps WETH and PoolTokens) | `TSwapPool::_addLiquidityMintAndTransfer` |
+| L-2 | `swapExactInput` result value is not returned clearly | `TSwapPool::swapExactInput` |
+| L-3 | `createPool` uses `.name()` instead of `.symbol()` for LP token symbol | `PoolFactory::createPool` |
+
+---
+
+### 🔵 Informational
+
+| ID | Finding |
+|----|---------|
+| I-1 | Missing `address(0)` checks in constructors and setters |
+| I-2 | Missing `revertIfZero` checks for amount parameters |
+| I-3 | Events missing `indexed` parameters |
+| I-4 | Magic numbers (1000, 997, 1e18) should be constants |
+| I-5 | `pragma 0.8.20` may unlock PUSH0 (check chain compatibility) |
+| I-6 | Unused custom error `PoolFactory__PoolDoesNotExist` |
+| I-7 | `createPool` misses check for empty token name |
+| I-8 | `deposit` error emits constant `MINIMUM_WETH_LIQUIDITY` |
+| I-9 | Unused local variable `poolTokenReserves` in `deposit` |
+| I-10 | `swapExactInput` should be `external` |
+| I-11 | Missing NatSpec for `swapExactInput` |
+| I-12 | Missing NatSpec for `deadline` in `swapExactOutput` |
+| I-13 | `swapExactOutput` missing `maxInputAmount` indication |
+| I-14 | `_swap` invariant check missing |
+
+---
+
+## 🛠 Tools Used
+
+| Tool | Purpose |
+|------|---------|
+| [Foundry](https://github.com/foundry-rs/foundry) | Testing & local development |
+| [Slither](https://github.com/crytic/slither) | Static analysis |
+| [Aderyn](https://github.com/Cyfrin/aderyn) | Smart contract analyzer |
+
+---
+
+## 📚 Lessons Learned
+
+1.  **Invariants**: Rigorous invariant testing (e.g., `x * y = k`) is crucial for DeFi protocols to detect broken logic like incorrect fee math.
+2.  **Slippage Protection**: Always include `minOutput` for swaps and `maxInput` for exact-output swaps to protect users from price changes.
+3.  **Deadline Checks**: Essential for all time-sensitive actions (swaps, deposits) to preventing old transactions from being executed.
+4.  **Math Precision**: Double-check all fee calculations and multipliers (e.g., 1000 vs 10000). Small typos causing massive losses.
+5.  **CEI Pattern**: Checks-Effects-Interactions is just as important in AMMs as in other protocols.
+6.  **Event Correctness**: Ensure event parameters match their definitions so off-chain indexers work correctly.
+
+---
+
+<p align="center">
+Made with ❤️ while learning Smart Contract Security
+</p>
