@@ -13,6 +13,7 @@ A comprehensive security audit of the **TSwap** Decentralized Exchange (DEX) pro
 ## 📋 Table of Contents
 
 - [Audit Overview](#audit-overview)
+- [📄 Full Audit Report (PDF)](#-full-audit-report-pdf)
 - [Severity Classification](#severity-classification)
 - [Executive Summary](#executive-summary)
 - [Findings](#findings)
@@ -34,6 +35,14 @@ A comprehensive security audit of the **TSwap** Decentralized Exchange (DEX) pro
 | **Target Chain** | Ethereum |
 | **Scope** | `src/PoolFactory.sol`, `src/TSwapPool.sol` |
 | **Methods** | Manual Review, Static Analysis (Slither, Aderyn) |
+
+---
+
+## 📄 Full Audit Report (PDF)
+
+> **[📥 Download the Complete Audit Report (PDF)](./audit-data/report.pdf)**
+
+The full report contains detailed findings with complete Proof of Concept code, diff patches, and comprehensive recommendations.
 
 ---
 
@@ -163,6 +172,43 @@ Logic exists to send tokens out of the contract every `SWAP_COUNT_MAX` swaps wit
 
 ---
 
+## 🎯 Section 5: The NFT Invariant Challenge
+
+![NFT Exploit Challenge](./images/S5_NFT.png)
+
+### 🕵️‍♂️ The Challenge & Approach
+
+While a static code analysis hinted that disrupting the pool's invariant required swapping Token C for Token A or B, I opted for a more rigorous approach to confirm this hypothesis. By implementing a **Stateful Invariant Test Suite**, I was able to programmatically prove the vulnerability and identify the exact conditions required to break the system.
+
+### 💥 The Breakthrough
+
+The invariant test successfully falsified the system's safety properties, triggering a revert with specific swap parameters. This confirmed that the pool's balance integrity could be compromised via a specific token swap path:
+
+```text
+[Revert] panic: assertion failed (0x01)
+S5Pool::swapFrom(TokenC: [...9b51A820a], TokenB: [...E1C58470b], 8.476e18)
+```
+
+This automated verification validated the visual inspection findings: **swapping Token C allows us to manipulate the pool state to satisfy the win condition.**
+
+### 🔓 Exploit Execution
+
+With the vulnerability confirmed, the NFT can be claimed via two distinct methods:
+
+#### Method 1: Programmatic Execution (Hot Wallet)
+Develop and execute a foundry script that interacts with the `S5Pool` to perform the specific swap sequence.
+
+#### Method 2: Manual Execution (Cold Wallet / Remix)
+For a manual approach using Remix, the following transaction sequence successfully solves the challenge:
+
+1. **Reset State**: `S5::hardReset()`
+2. **Acquire Tokens**: `S5Token::mint()`
+3. **Approve Pool**: `S5Token::approve(address(S5Pool), 1e18)`
+4. **Trigger Exploit**: `S5Pool::swapFrom(address(TokenC), address(TokenA), 1e18)`
+5. **Claim Victory**: `S5:solveChallenge()`
+
+---
+
 ## 🛠 Tools Used
 
 | Tool | Purpose |
@@ -184,6 +230,4 @@ Logic exists to send tokens out of the contract every `SWAP_COUNT_MAX` swaps wit
 
 ---
 
-<p align="center">
-Made with ❤️ while learning Smart Contract Security
-</p>
+Made with ❤️ by **GushALKDev** | Advancing in Smart Contract Security
