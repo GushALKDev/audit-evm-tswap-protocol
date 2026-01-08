@@ -84,60 +84,20 @@ The **TSwap** protocol contains **critical security vulnerabilities** that make 
 
 ### 🔴 High Severity
 
-#### [H-1] Incorrect fee calculation in `getInputAmountBasedOnOutput` causes protocol to take 90% fee instead of 0.3%
-
-**Location:** `TSwapPool::getInputAmountBasedOnOutput`
-
-The function uses `10000` instead of `1000` in the numerator when calculating input amount, resulting in a massive overcharge (90%+ fee) rather than the intended 0.3%.
-
-```solidity
-// ❌ Vulnerable - 10000 creates 90% fee
-return ((inputReserves * outputAmount) * 10000) / ((outputReserves - outputAmount) * 997);
-```
-
-**Fix:** Replace `10000` with `1000`.
-
----
-
-#### [H-2] `TSwapPool::sellPoolTokens` calls `swapExactOutput` with incorrect parameters
-
-**Location:** `TSwapPool::sellPoolTokens`
-
-The function calls `swapExactOutput` passing `poolTokenAmount` (an input amount) as the `outputAmount` parameter. This fundamentally breaks the logic of selling a specific amount of tokens.
-
-**Fix:** Use `swapExactInput` instead.
-
----
-
-#### [H-3] `TSwapPool::swapExactOutput` lacks slippage protection
-
-**Location:** `TSwapPool::swapExactOutput`
-
-The function does not accept a `maxInputAmount` parameter. If market conditions change or liquidity shifts, users may end up paying significantly more input tokens than expected to receive their desired output.
-
-**Fix:** Add `maxInputAmount` parameter and check `inputAmount <= maxInputAmount`.
-
----
-
-#### [H-4] `TSwapPool::deposit` Missing Deadline Check
-
-**Location:** `TSwapPool::deposit`
-
-The `deposit` function accepts a `deadline` parameter but never checks it (missing `revertIfDeadlinePassed` modifier). Transactions can hang in the mempool and be executed long after the user intended.
-
-**Fix:** Add `revertIfDeadlinePassed(deadline)` modifier.
+| ID | Finding | Location |
+|----|---------|----------|
+| H-1 | Incorrect fee calculation in `getInputAmountBasedOnOutput` causes protocol to take 90% fee instead of 0.3% | `TSwapPool::getInputAmountBasedOnOutput` |
+| H-2 | `sellPoolTokens` calls `swapExactOutput` with incorrect parameters | `TSwapPool::sellPoolTokens` |
+| H-3 | `swapExactOutput` lacks slippage protection (`maxInputAmount` missing) | `TSwapPool::swapExactOutput` |
+| H-4 | `deposit` missing deadline check despite accepting `deadline` parameter | `TSwapPool::deposit` |
 
 ---
 
 ### 🟠 Medium Severity
 
-#### [M-1] Fee-on-transfer logic breaks protocol invariant
-
-**Location:** `TSwapPool::_swap`
-
-Logic exists to send tokens out of the contract every `SWAP_COUNT_MAX` swaps without balancing the reserves. This removes tokens from the pool without a corresponding swap, breaking the `x * y = k` invariant.
-
-**Fix:** Remove the fee-on-transfer mechanism or account for it mathematically.
+| ID | Finding | Location |
+|----|---------|----------|
+| M-1 | Fee-on-transfer logic breaks protocol invariant (`x * y = k`) | `TSwapPool::_swap` |
 
 ---
 
